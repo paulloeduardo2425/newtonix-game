@@ -1,48 +1,42 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-br">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport"
-content="width=device-width,initial-scale=1,user-scalable=no">
-
-<title>Newtonix Mobile Edition</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>NEWTONIX Mobile</title>
 
 <link rel="stylesheet" href="style.css">
 
-<script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.js"></script>
 </head>
+
 <body>
 
 <div id="game-container"></div>
 
+<!-- MENU -->
+<div id="menu">
+    <h1>NEWTONIX</h1>
+    <p>A Guerra das Leis Perdidas</p>
+
+    <button onclick="startGame()">▶ Jogar</button>
+    <button onclick="resetGame()">🔄 Reset</button>
+</div>
+
+<!-- MOBILE CONTROLS -->
 <div id="mobile-controls">
+    <div class="dpad">
+        <button id="left">⬅</button>
+        <button id="right">➡</button>
+    </div>
 
-<button id="leftBtn">◀</button>
-<button id="rightBtn">▶</button>
-
-<div class="right-controls">
-<button id="jumpBtn">▲</button>
-<button id="attackBtn">✦</button>
+    <div class="actions">
+        <button id="jump">⤒</button>
+        <button id="attack">⚡</button>
+    </div>
 </div>
 
-</div>
-
-<div id="quiz-container" class="hidden">
-<div class="quiz-box">
-
-<h2 id="quiz-question"></h2>
-
-<div id="quiz-options"></div>
-
-<div id="quiz-feedback" class="hidden">
-<p id="feedback-text"></p>
-<button id="btn-next-quiz">Próxima</button>
-</div>
-
-</div>
-</div>
-
-<script src="js/main.js"></script>
+<script src="game.js"></script>
 
 </body>
 </html>
