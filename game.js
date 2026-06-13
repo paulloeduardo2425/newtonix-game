@@ -124,7 +124,7 @@ const QuizDatabase = {
         {
             pergunta: "Se as forças de Ação e Reação são sempre iguais em módulo e opostas em sentido, por que elas não se anulam mutuamente?",
             opcoes: [
-                "Because elas atuam em corpos diferentes.",
+                "Porque elas atuam em corpos diferentes.",
                 "Porque a reação ocorre alguns milissegundos após a ação.",
                 "Porque a força de ação é sempre ligeiramente maior.",
                 "Porque a gravidade anula o vetor inverso."
@@ -618,7 +618,7 @@ class SceneCutsceneIntro extends Phaser.Scene {
                 return;
             }
             
-            let textoCompleto = textosnarracao = textosNarracao[index];
+            let textoCompleto = textosNarracao[index];
             let charIndex = 0;
             txtExibicao.setText('');
             
@@ -687,4 +687,354 @@ class BaseFase extends Phaser.Scene {
 
         this.physics.add.overlap(this.grupoProjeteis, this.grupoInimigos, this.danoInimigo, null, this);
         this.physics.add.collider(this.grupoProjeteis, this.grupoPlataformas, (proj) => { proj.destroy(); });
-        this.physics.add.overlap(this.grupoProjeteisInimigos, this.player, (p, proj)
+        this.physics.add.overlap(this.grupoProjeteisInimigos, this.player, (p, proj) => { this.player.receberDano(proj.dano || 10); proj.destroy(); }, null, this);
+
+        this.cursors = this.input.keyboard.createCursorKeys();
+        this.teclasAdicionais = {
+            shift: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT),
+            teclaAtaque: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.X)
+        };
+
+        this.input.keyboard.on('keydown-SPACE', () => {
+            this.player.controlarPulo();
+        });
+
+        this.inserirNpcEducacional();
+    }
+
+    update() {
+        this.player.update(this.cursors, this.teclasAdicionais);
+        
+        if (this.player.estaEscalando && !this.physics.overlap(this.player, this.grupoCordas)) {
+            this.player.estaEscalando = false;
+        }
+
+        this.grupoInimigos.getChildren().forEach(inimigo => {
+            if(inimigo.update) inimigo.update(this.player);
+        });
+
+        if (this.boss && this.boss.active) {
+            this.boss.update(this.player);
+        }
+
+        this.grupoPlataformasMoveis.getChildren().forEach(plat => {
+            if(plat.body.x > plat.limiteDireito) plat.body.setVelocityX(-100);
+            else if(plat.body.x < plat.limiteEsquerdo) plat.body.setVelocityX(100);
+        });
+
+        if (this.player.x > 2600 && !this.bossSpawnado) {
+            this.invocarChefeDeFase();
+        }
+
+        this.hud.atualizar(this.player, this.saveData.moedas, this.saveData.xp, this.saveData.nivel, this.textoObjetivo);
+    }
+
+    emitirParticulas(x, y, cor, quant) {
+        this.add.particles(x, y, 'star', {
+            speed: { min: -100, max: 100 },
+            angle: { min: 0, max: 360 },
+            scale: { start: 1, end: 0 },
+            blendMode: 'ADD',
+            lifespan: 400,
+            gravityY: 200,
+            maxParticles: quant
+        });
+    }
+
+    criarFundoParalaxe() {
+        let f1 = this.make.graphics({ x: 0, y: 0, add: false });
+        f1.fillStyle(0x0a0a16, 1); f1.fillRect(0,0,800,600); f1.generateTexture('bg_camada1',800,600);
+        this.add.tileSprite(0, 0, 3200, 600, 'bg_camada1').setOrigin(0,0).setScrollFactor(0.1);
+
+        let f2 = this.make.graphics({ x: 0, y: 0, add: false });
+        f2.fillStyle(0x13132c, 1); 
+        for(let i=0; i<10; i++) { f2.fillRect(i*300, 300 + (i%3)*40, 120, 300); }
+        f2.generateTexture('bg_camada2',800,600);
+        this.add.tileSprite(0, 0, 3200, 600, 'bg_camada2').setOrigin(0,0).setScrollFactor(0.4);
+    }
+
+    construirCenarioCorporal() {
+        let g = this.make.graphics({ x: 0, y: 0, add: false });
+        g.fillStyle(0x1e293b, 1); g.fillRect(0,0,40,40);
+        g.lineStyle(2, 0x00d2ff, 1); g.strokeRect(0,0,40,40);
+        g.generateTexture('bloco_chao',40,40);
+
+        for (let x = 0; x < 3200; x += 40) {
+            if (x > 800 && x < 960) continue;  
+            if (x > 1800 && x < 2000) continue; 
+            this.grupoPlataformas.create(x + 20, 580, 'bloco_chao');
+        }
+
+        let layoutsPlataformas = [
+            {x: 300, y: 450}, {x: 340, y: 450}, {x: 500, y: 350},
+            {x: 1100, y: 450}, {x: 1200, y: 380}, {x: 1300, y: 300},
+            {x: 2100, y: 450}, {x: 2300, y: 350}
+        ];
+        layoutsPlataformas.forEach(p => {
+            this.grupoPlataformas.create(p.x, p.y, 'bloco_chao');
+        });
+
+        let platMovel = this.grupoPlataformasMoveis.create(1500, 400, 'bloco_chao');
+        platMovel.body.setAllowGravity(false);
+        platMovel.body.setImmovable(true);
+        platMovel.body.setVelocityX(100);
+        platMovel.limiteEsquerdo = 1350;
+        platMovel.limiteDireito = 1700;
+
+        let cxG = this.make.graphics({ x: 0, y: 0, add: false });
+        cxG.fillStyle(0xd97706, 1); cxG.fillRect(0,0,32,32); cxG.generateTexture('caixa',32,32);
+        
+        let caixa = this.grupoObjetosEmpurráveis.create(650, 500, 'caixa');
+        caixa.setCollideWorldBounds(true);
+        caixa.body.setDragX(400); 
+
+        let mG = this.make.graphics({ x: 0, y: 0, add: false });
+        mG.fillStyle(0xfbbf24, 1); mG.fillCircle(8,8,8); mG.generateTexture('moeda',16,16);
+        
+        for (let i = 0; i < 15; i++) {
+            this.grupoColetaveis.create(200 + (i * 180), 350, 'moeda');
+        }
+
+        let cdG = this.make.graphics({ x: 0, y: 0, add: false });
+        cdG.fillStyle(0x00ff88, 1); cdG.fillRect(0,0,6,120); cdG.generateTexture('corda',6,120);
+        this.grupoCordas.create(1200, 260, 'corda');
+    }
+
+    tratarPlataformaMovel(player, plataforma) {
+        if (player.body.touching.down && plataforma.body.velocity.x !== 0) {
+            player.body.setX(player.x + (plataforma.body.velocity.x * this.sys.game.loop.delta / 1000));
+        }
+    }
+
+    coletarMoeda(player, moeda) {
+        moeda.destroy();
+        this.saveData.moedas += 1;
+        this.saveData.xp += 2;
+        AudioEngine.playSfx('coleta');
+        this.verificarUpgradeNivel();
+    }
+
+    verificarUpgradeNivel() {
+        let xpNecessario = this.saveData.nivel * 50;
+        if (this.saveData.xp >= xpNecessario) {
+            this.saveData.nivel += 1;
+            this.saveData.atributos.vidaMax += 15;
+            this.saveData.atributos.ataque += 4;
+            this.saveData.atributos.velocidade += 15;
+            this.player.vidaMax = this.saveData.atributos.vidaMax;
+            this.player.vida = this.player.vidaMax; 
+            alert(`EVOLUÇÃO CIENTÍFICA! Você alcançou o Nível ${this.saveData.nivel}! Atributos de Física Ampliados.`);
+            SaveManager.salvar(this.saveData);
+        }
+    }
+
+    danoInimigo(projetil, inimigo) {
+        projetil.destroy();
+        inimigo.receberDano(projetil.dano);
+    }
+
+    inserirNpcEducacional() {
+        let npcG = this.make.graphics({ x: 0, y: 0, add: false });
+        npcG.fillStyle(0xa78bfa, 1); npcG.fillRect(0,0,32,48); npcG.generateTexture('npc_txt',32,48);
+        
+        this.npcCientista = this.physics.add.staticSprite(1000, 520, 'npc_txt');
+        
+        this.physics.add.overlap(this.player, this.npcCientista, () => {
+            if(!this.npcCientista.conversado) {
+                this.npcCientista.conversado = true;
+                this.exibirDialogoEducacional();
+            }
+        }, null, this);
+    }
+
+    exibirDialogoEducacional() {
+        this.physics.world.pause(); 
+        
+        let explicacoes = {
+            1: "Olá Newtonix! Eu sou o PROFESSOR VECTOR. Lembre-se da PRIMEIRA LEI DE NEWTON (INÉRCIA): Todo corpo permanece em seu estado de repouso ou de movimento retilíneo uniforme, a menos que seja compelido a mudar aquele estado por forças impressas sobre ele!",
+            2: "Saudações, Explorador! Sou a DRA. MOMENTUM. Preste atenção na SEGUNDA LEI DE NEWTON (DINÂMICA): A alteração do movimento é proporcional à força motriz impressa, ocorrendo na direção da linha reta em que aquela força é aplicada (F = m*a)!",
+            3: "Atenção Aluno! Sou o GENERAL VETOR. Guarde bem a TERCEIRA LEI DE NEWTON (AÇÃO E REAÇÃO): A toda ação há sempre uma reação oposta e igual. As ações mútuas de dois corpos um sobre o outro são sempre iguais e dirigidas a partes opostas!"
+        };
+
+        alert(`[TRANSMISSÃO CIENTÍFICA]\n\n${explicacoes[this.idFase]}`);
+        this.physics.world.resume();
+    }
+
+    invocarChefeDeFase() {
+        this.bossSpawnado = true;
+        
+        let parede = this.physics.add.staticRect(2500, 300, 20, 600);
+        this.physics.add.collider(this.player, parede);
+
+        let nomesChefes = { 1: "Guardião da Inércia", 2: "Mestre da Aceleração", 3: "Lord Inércia" };
+        this.boss = new Boss(this, 3000, 450, nomesChefes[this.idFase], this.idFase);
+
+        this.physics.add.collider(this.boss, this.grupoPlataformas);
+        this.physics.add.collider(this.boss, this.player, (b, p) => { p.receberDano(this.idFase * 15); }, null, this);
+        this.physics.add.overlap(this.grupoProjeteis, this.boss, (b, proj) => { b.receberDano(proj.dano); proj.destroy(); }, null, this);
+        
+        alert(`ALERTA DE ANOMALIA MECÂNICA: O ${nomesChefes[this.idFase]} Bloqueia Seu Caminho!`);
+    }
+
+    concluirConfrontoChefe() {
+        AudioEngine.playSfx('vitoria');
+        if (!this.quizFinalizado) {
+            this.quizFinalizado = true;
+            this.dispararSistemaQuiz();
+        }
+    }
+
+    dispararSistemaQuiz() {
+        this.physics.world.pause();
+        
+        let container = document.getElementById('quiz-container');
+        let txtPergunta = document.getElementById('quiz-question');
+        let divOpcoes = document.getElementById('quiz-options');
+        let divFeedback = document.getElementById('quiz-feedback');
+        let txtFeedback = document.getElementById('feedback-text');
+        let btnAvancar = document.getElementById('btn-next-quiz');
+
+        container.classList.remove('hidden');
+
+        let listaPerguntas = QuizDatabase[`fase${this.idFase}`];
+        let perguntaIndex = 0;
+
+        let carregarQuestao = () => {
+            divFeedback.classList.add('hidden');
+            divOpcoes.innerHTML = '';
+            
+            let dadosQuestao = listaPerguntas[perguntaIndex];
+            txtPergunta.innerText = dadosQuestao.pergunta;
+
+            dadosQuestao.opcoes.forEach((opcao, id) => {
+                let btn = document.createElement('button');
+                btn.className = 'quiz-btn';
+                btn.innerText = opcao;
+                btn.onclick = () => {
+                    document.querySelectorAll('.quiz-btn').forEach(b => b.disabled = true);
+                    
+                    divFeedback.classList.remove('hidden');
+                    if (id === dadosQuestao.correta) {
+                        txtFeedback.innerHTML = `<span class="correct-style">RESPOSTA CORRETA!</span><br>${dadosQuestao.explicacao}`;
+                        this.saveData.quizAcertos++;
+                    } else {
+                        txtFeedback.innerHTML = `<span class="incorrect-style">RESPOSTA INCORRETA!</span><br>${dadosQuestao.explicacao}`;
+                    }
+                };
+                divOpcoes.appendChild(btn);
+            });
+        };
+
+        btnAvancar.onclick = () => {
+            perguntaIndex++;
+            if (perguntaIndex < listaPerguntas.length) {
+                carregarQuestao();
+            } else {
+                container.classList.add('hidden');
+                this.physics.world.resume();
+                this.avancarEstruturaFases();
+            }
+        };
+
+        carregarQuestao();
+    }
+
+    avancarEstruturaFases() {
+        if (this.idFase === 1) {
+            this.saveData.faseAtual = 2;
+            SaveManager.salvar(this.saveData);
+            this.scene.start('SceneFase2');
+        } else if (this.idFase === 2) {
+            this.saveData.faseAtual = 3;
+            SaveManager.salvar(this.saveData);
+            this.scene.start('SceneFase3');
+        } else {
+            this.scene.start('SceneParabens');
+        }
+    }
+}
+
+class SceneFase1 extends BaseFase {
+    constructor() { super('SceneFase1', 'Vale da Inércia', 1, 'Recuperar o Cristal da Primeira Lei'); }
+    construirCenarioCorporal() {
+        super.construirCenarioCorporal();
+        this.grupoInimigos.add(new Enemy(this, 400, 500, 'Robô Enferrujado', { vida: 30, ataque: 5 }));
+        this.grupoInimigos.add(new Enemy(this, 1400, 500, 'Esfera Descontrolada', { vida: 20, ataque: 3 }));
+        this.grupoInimigos.add(new Enemy(this, 2200, 500, 'Robô Enferrujado', { vida: 30, ataque: 5 }));
+    }
+}
+
+class SceneFase2 extends BaseFase {
+    constructor() { super('SceneFase2', 'Cidade da Aceleração', 2, 'Recuperar o Cristal da Segunda Lei'); }
+    construirCenarioCorporal() {
+        super.construirCenarioCorporal();
+        this.grupoInimigos.add(new Enemy(this, 500, 500, 'Drone', { vida: 40, ataque: 10, velocidad: 120 }));
+        this.grupoInimigos.add(new Enemy(this, 1200, 500, 'Drone', { vida: 40, ataque: 10, velocidad: 120 }));
+        this.grupoInimigos.add(new Enemy(this, 2400, 500, 'Sentinela Turbo', { vida: 50, ataque: 12, velocidad: 140 }));
+    }
+}
+
+class SceneFase3 extends BaseFase {
+    constructor() { super('SceneFase3', 'Fortaleza da Ação e Reação', 3, 'Derrotar Lord Inércia e Salvar o Universo'); }
+    construirCenarioCorporal() {
+        super.construirCenarioCorporal();
+        this.grupoInimigos.add(new Enemy(this, 600, 500, 'Soldado Mecânico', { vida: 60, ataque: 15 }));
+        this.grupoInimigos.add(new Enemy(this, 1600, 500, 'Drones Pesados', { vida: 70, ataque: 20 }));
+        this.grupoInimigos.add(new Enemy(this, 2300, 500, 'Soldado Mecânico', { vida: 60, ataque: 15 }));
+    }
+}
+
+class SceneParabens extends Phaser.Scene {
+    constructor() { super({ key: 'SceneParabens' }); }
+    create() {
+        this.cameras.main.setBackgroundColor('#020617');
+        let data = SaveManager.carregar();
+
+        this.add.text(400, 80, 'UNIVERSO RESTAURADO!', { font: 'bold 36px Courier New', fill: '#4ade80' }).setOrigin(0.5);
+        
+        let relatorioHTML = `
+            DESEMPENHO DO CIENTISTA SUPREMO:
+            - Moedas Tecnológicas: ${data.moedas}
+            - Inimigos Neutralizados: ${data.inimigosDerrotados}
+            - Acertos Acadêmicos (Quiz): ${data.quizAcertos} / 9
+            - Nível de Conhecimento Atingido: Nvl ${data.nivel}
+        `;
+
+        this.add.text(400, 240, relatorioHTML, { font: '18px Courier New', fill: '#ffffff', align: 'center' }).setOrigin(0.5);
+
+        let ranking = "Aspirante a Físico";
+        if (data.quizAcertos >= 8) ranking = "Mestre de Newton de Nível Quântico!";
+        else if (data.quizAcertos >= 5) ranking = "Bacharel em Dinâmica de Movimento";
+
+        this.add.text(400, 400, `RANKING: ${ranking}`, { font: 'bold 20px Courier New', fill: '#fbbf24' }).setOrigin(0.5);
+
+        let btnReiniciar = this.add.text(400, 500, 'RETORNAR AO MENU', { font: 'bold 18px Courier New', fill: '#000', backgroundColor: '#fbbf24', padding: 12 })
+            .setOrigin(0.5)
+            .setInteractive({ useHandCursor: true });
+
+        btnReiniciar.on('pointerdown', () => {
+            SaveManager.resetar();
+            window.location.reload();
+        });
+    }
+}
+
+// ==========================================
+// CONFIGURAÇÃO CENTRAL DO ENGINE PHASER
+// ==========================================
+const PhaserConfig = {
+    type: Phaser.AUTO,
+    width: 800,
+    height: 600,
+    parent: 'game-container',
+    physics: {
+        default: 'arcade',
+        arcade: {
+            gravity: { y: 0 },
+            debug: false 
+        }
+    },
+    scene: [SceneMenu, SceneCutsceneIntro, SceneFase1, SceneFase2, SceneFase3, SceneParabens]
+};
+
+const JogoNewtonix = new Phaser.Game(PhaserConfig);
